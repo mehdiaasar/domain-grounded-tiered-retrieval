@@ -1,0 +1,35 @@
+# Secrets
+.env
+.env.local
+.scrubbed_values.json
+
+# Environments
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Vector store (regenerable, and can embed source text)
+db/
+
+# OS
+.DS_Store
+
+# Large third-party benchmark data (TimeQA train split is 280 MB, over GitHub's limit)
+datasets/timeqa_*.csv
+evaluation/timeqa_*.csv
+evaluation/Archive.zip
+
+# Superseded development trail
+old implementation/
+old architecture/
+20 que eval/
+eval 20 que v2/
+research papper/
+
+# Bloated duplicate notebooks (10 MB each, outputs only)
+evaluation/final_graph copy.ipynb
+evaluation/final_graph copy 2.ipynb
