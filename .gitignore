@@ -29,7 +29,3 @@ old architecture/
 20 que eval/
 eval 20 que v2/
 research papper/
-
-# Bloated duplicate notebooks (10 MB each, outputs only)
-evaluation/final_graph copy.ipynb
-evaluation/final_graph copy 2.ipynb

@@ -103,21 +103,50 @@ failure mode and proposes pre-retrieval answerability estimation as future work.
 Raw judge outputs — per-row reasoning, retrieved documents, grader logs, and extracted claim
 lists — are in `evaluation/`.
 
-### Reproducing these numbers from the committed CSVs
+### Provenance
 
-Four of the five rows recompute exactly from `evaluation/` as `wins / queries`: FreshQA
-(97/150), TruthfulQA (82/150), HaluEval (75/150) and MMLU (39/50).
+Every reported CSV was produced by the two run notebooks in `evaluation/`, which are the
+artifacts submitted with the paper. Their saved cell outputs contain the complete per-query
+execution trace (node-by-node state updates for all 650 queries) plus the summary block printed
+at the end of each run:
 
-**TimeQA is reported over an 86-row factual-answer subset, not the full 150-row run.** The
-committed CSV (`evalfinal_llm_judge_timeqa_v2_150que_rm_constraint.csv`) holds all 150 rows and
-scores 72 W / 74 T / 4 L. Wins and losses match the paper exactly; the paper excludes 64 of the
-74 tie rows as non-factual-answer rows, giving 86 and a 83.7% win rate. The precise exclusion
-rule is not recoverable from this CSV alone — filtering on abstention text or on
-`graph_groundedness > 0` gets close (n=92) but not to 86.
+| Notebook | Benchmarks run |
+|---|---|
+| `final_graph copy.ipynb` | FreshQA (150), TruthfulQA (150) |
+| `final_graph copy 2.ipynb` | TimeQA (150), MMLU (50), HaluEval (150) |
+
+### What the code prints vs. what the paper reports
+
+`run_evaluation_study` computes win rate as `wins / total_valid`, where `total_valid` counts
+every row judged `Proposed`, `Tie`, or `Baseline` — no subsetting. Its printed output:
+
+| Benchmark | Win rate (printed) | Win rate (paper) | Groundedness (printed) | Groundedness (paper) |
+|---|---:|---:|---:|---:|
+| FreshQA v2 | 64.7% | 64.7% ✓ | 7.2% | 19.2% |
+| TruthfulQA | 54.7% | 54.7% ✓ | 8.9% | 84.9% |
+| MMLU Global Facts | 78.0% | 78.0% ✓ | 35.0% | 66.9% |
+| HaluEval General | 50.0% | 50.0% ✓ | 53.0% | 78.8% |
+| **TimeQA v2** | **48.0%** | **83.7%** | 23.1% | 86.4% |
+
+Four of five win rates reproduce exactly. **TimeQA does not:** the run prints 48.0% over 150
+queries (72 W / 74 T / 4 L), while the paper reports 83.7% over 86. Wins (72) and losses (4)
+agree, so it is the same run — the paper's denominator excludes 64 of the 74 tie rows.
+
+Groundedness in the paper is uniformly higher than the raw means the code prints, consistent
+with the paper's stated use of "factual-answer subsets". That subsetting step is **not present
+in this codebase** — it was applied downstream of these notebooks, so neither the TimeQA
+denominator nor the paper's groundedness column can be regenerated from this repository as it
+stands. Anyone re-running these notebooks will get the "printed" column.
 
 > **Note on filenames:** the `_rm_constraint` / `_rem_ceck_const` suffixes mark runs with the
 > constraint-checking node disabled. The `ground_truth` column in the TimeQA file is `N/A`
 > throughout — that run was judged pairwise, not against gold labels.
+>
+> **Tie semantics:** `run_evaluation_study` assigns `Tie` mechanically, without consulting the
+> judge, whenever `baseline_ans == proposed_ans` — i.e. whenever the pipeline accepted its own
+> zero-shot answer. Ties are therefore "RAG bypassed or produced identical text", not "judge
+> found the answers equally good". This is why TimeQA's tie count is high (74/150) despite
+> `rag_triggered` being `True` on every row.
 
 ## Repository layout
 
