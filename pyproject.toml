@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dgtr"
+version = "1.0.0"
+description = "Domain-grounded tiered retrieval: a self-verifying LangGraph agent for hallucination mitigation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Md. Asraful Haque" },
+    { name = "Aasar Mehdi" },
+    { name = "Maaz Mahboob" },
+    { name = "Tamkeen Fatima" },
+]
+keywords = ["llm", "hallucination", "rag", "langgraph", "retrieval", "fact-checking"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "langgraph>=1.0.8",
+    "langchain>=1.2.10",
+    "langchain-core>=1.2.11",
+    "langchain-community>=0.4.1",
+    "langchain-tavily>=0.2.17",
+    "tavily-python>=0.7.21",
+    "pydantic>=2.9",
+    "pandas>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+groq = ["langchain-groq>=0.2"]
+openai = ["langchain-openai>=1.1.9"]
+google = ["langchain-google-genai>=4.2.0"]
+ollama = ["langchain-ollama>=1.0.1"]
+app = ["streamlit>=1.40"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+dgtr = "dgtr.cli:main"
+
+[project.urls]
+Paper = "https://arxiv.org/abs/2603.17872"
+Source = "https://github.com/mehdiaasar/domain-grounded-tiered-retrieval"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Prompt strings are model input, not prose: rewrapping them changes results.
+"src/dgtr/prompts.py" = ["E501"]

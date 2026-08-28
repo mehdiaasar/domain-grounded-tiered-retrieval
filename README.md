@@ -15,6 +15,44 @@ the open web. The pipeline first asks whether the model's parametric knowledge i
 sufficient; only when claim-level scoring says otherwise does it reach outward, and when it does,
 it reaches for a domain-appropriate allowlist before anything else.
 
+## Try it
+
+The demo opens in **replay mode**, which needs no API key: it renders any of the
+650 runs recorded during the paper's evaluation — real answers, real retrieved
+documents, real grader decisions, claim by claim.
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py            # -> http://localhost:8501
+```
+
+or without a Python setup at all:
+
+```bash
+docker compose up               # -> http://localhost:8501
+```
+
+To run the pipeline live, add a [Groq](https://console.groq.com/keys) and a
+[Tavily](https://app.tavily.com) key — both free tiers — to `.env`, or paste
+them into the app's sidebar. Groq's free tier serves `llama-3.1-8b-instant`,
+the same 8B generator the paper evaluates.
+
+```bash
+cp .env.example .env            # then fill in GROQ_API_KEY and TAVILY_API_KEY
+```
+
+From the command line:
+
+```bash
+python -m dgtr "Explain how insulin regulates blood sugar"
+python -m dgtr --offline "What is the name of the first animal to land on the moon?"
+python -m dgtr --list-demos
+```
+
+[`DEPLOY.md`](DEPLOY.md) covers hosting the demo on Hugging Face Spaces,
+Streamlit Community Cloud, or any Docker host — all free.
+
+
 ## Pipeline
 
 ```
@@ -151,46 +189,109 @@ stands. Anyone re-running these notebooks will get the "printed" column.
 ## Repository layout
 
 ```
+app.py                                   Streamlit demo (replay + live modes)
+src/dgtr/                                the pipeline as an importable package
+  config.py                              provider resolution and thresholds
+  graph.py                               LangGraph assembly, Pipeline entry point
+  nodes.py                               node implementations and routers
+  prompts.py                             every prompt, verbatim from the notebooks
+  claims.py                              claim-list parsing
+  sources.py                             per-domain trusted allowlists
+  search.py                              Tavily retrieval for both tiers
+  demo.py                                replays recorded runs from evaluation/
+  cli.py                                 python -m dgtr
+tests/                                   49 tests; no API keys required
+evaluation/*.csv                         per-benchmark judge outputs (650 runs)
+evaluation/final_graph.ipynb             evaluation harness (LLM judge)
+datasets/                                benchmark inputs (small subsets; see below)
+report/                                  algorithm write-up, evidence notes, figure
+diagram/                                 architecture diagrams (PNG + SVG)
+Dockerfile, compose.yaml                 one-command run
+DEPLOY.md                                hosting the demo
+```
+
+The original notebooks are kept as the record of what was submitted with the
+paper:
+
+```
 final_graph.ipynb                        main pipeline (LangGraph, GPT-4o-mini)
 claim_based_critic batch_v2.ipynb        batched claim critic, current version
 claim_based_critic batch_v2_ollama.ipynb same critic against local Ollama models
 claim_based_v2_domain_retriever.ipynb    domain classifier + trusted-source retriever
 generating_queries.ipynb                 synthetic eval query generation
-evaluation/final_graph.ipynb             evaluation harness (LLM judge)
-evaluation/*.csv                         per-benchmark judge outputs, 150 questions each
-datasets/                                benchmark inputs (small subsets; see below)
-report/                                  algorithm write-up, evidence notes, pipeline figure
-diagram/                                 architecture diagrams (PNG + SVG)
 ```
 
-## Setup
+`src/dgtr/` is a faithful port of `final_graph.ipynb` — same graph topology,
+same prompts, same routing thresholds — restructured so it can be imported,
+tested, and served. One behavioural fix was applied, described below.
 
-```bash
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env    # then fill in your keys
+### One fix carried over from the notebooks
+
+The notebook's claim extractor kept every non-empty line the model returned.
+Smaller instruction-tuned models wrap their numbered list in chatter — "Here is
+the decomposed output:" before it, a restatement of the extraction rules after —
+and those lines were then constraint-checked and fact-scored as if they were
+claims. Since an unverifiable line scores 0, this dragged the composite score
+down and pushed queries into retrieval that did not need it. In one recorded
+TimeQA row, 6 of 8 "claims" are commentary.
+
+`src/dgtr/claims.py` keeps only the numbered lines, falling back to the raw
+lines when the model emits no numbering, so nothing is silently dropped. This
+means the package can score slightly higher than the notebooks on the same
+query. The notebooks are left as they were, so the published numbers remain
+reproducible from them.
+
+## Using it as a library
+
+```python
+from dgtr import Pipeline, Settings
+
+pipeline = Pipeline(Settings.from_env(provider="groq"))
+
+for node, update in pipeline.stream("Explain how insulin regulates blood sugar"):
+    print(node, "->", list(update))
+
+state = pipeline.run("Which position did Richard Sanderson (MP) hold in May 1833?")
+print(state["answer"], state["score"], state["trace"])
 ```
 
-To reproduce the reported evaluation you also need [Ollama](https://ollama.com) with both models
-pulled:
-
-```bash
-ollama pull llama3.1:8b && ollama pull gemma3:27b
-```
-
-Required keys in `.env`:
+`Settings` decides which provider runs the graph. `LLM_PROVIDER` picks one
+explicitly (`groq`, `openai`, `google`, `ollama`); with it unset, the first
+provider whose key is present wins. `ACCEPT_THRESHOLD` moves the score at or
+above which an answer is accepted without escalating a tier (default 70).
 
 | Variable | Used for |
 |---|---|
-| `TAVILY_API_KEY` | trusted-tier and general web search — needed for every run |
-| `OPENAI_API_KEY` | the GPT-4o-mini pipeline variant in `final_graph.ipynb`; not used by the reported eval |
+| `TAVILY_API_KEY` | both retrieval tiers — needed for every live run |
+| `GROQ_API_KEY` | default provider; free tier serves the paper's 8B model |
+| `OPENAI_API_KEY` | the GPT-4o-mini variant used in the root notebook |
 | `GOOGLE_API_KEY` | optional — Gemini comparison runs |
 
-Note that the root `final_graph.ipynb` is configured for `gpt-4o-mini`, while the harness in
-`evaluation/final_graph.ipynb` is configured for the local Ollama models used in the paper.
+No keys are hardcoded; `.env` is gitignored and must never be committed. Keys
+typed into the web UI stay in that browser session and are never written to
+disk or logged.
 
-Every notebook loads these via `load_dotenv()` in its first cell. **No keys are hardcoded; `.env`
-is gitignored and must never be committed.**
+To reproduce the paper's evaluation locally you also need
+[Ollama](https://ollama.com) with both models pulled, and the exact pins in
+`requirements-paper.txt`:
+
+```bash
+ollama pull llama3.1:8b && ollama pull gemma3:27b
+pip install -r requirements-paper.txt
+```
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+pytest        # 49 tests, no API keys needed
+ruff check src tests app.py
+```
+
+The suite drives the real graph with a scripted model, so it asserts the
+routing the paper describes — retrieval skipped on high closed-book confidence,
+the trusted tier tried before the open web, and a refusal rather than an
+ungrounded answer when every tier is exhausted — without a single network call.
 
 ## Datasets
 

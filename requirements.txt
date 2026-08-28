@@ -1,17 +1,21 @@
-# Pinned to the versions used for the reported evaluation runs.
-langgraph==1.0.8
-langchain==1.2.10
-langchain-core==1.2.11
-langchain-openai==1.1.9
-langchain-community==0.4.1
-langchain-tavily==0.2.17
-tavily-python==0.7.21
-faiss-cpu==1.13.2
-pydantic==2.12.5
-pandas==3.0.0
-python-dotenv==1.2.1
-datasets==4.5.0
+# Runtime dependencies for the app and the CLI.
+# Notebook-only pins from the original evaluation runs are in
+# requirements-paper.txt -- use those to reproduce the published numbers.
 
-# Optional - only needed for the comparison runs
-langchain-google-genai==4.2.0   # Gemini
-langchain-ollama==1.0.1         # local models (claim_based_critic batch_v2_ollama.ipynb)
+langgraph>=1.0.8
+langchain>=1.2.10
+langchain-core>=1.2.11
+langchain-community>=0.4.1
+langchain-tavily>=0.2.17
+tavily-python>=0.7.21
+pydantic>=2.9
+pandas>=2.0
+python-dotenv>=1.0
+streamlit>=1.40
+
+# Model providers. Groq's free tier serves llama-3.1-8b-instant, the same 8B
+# generator the paper evaluates, so it is the default.
+langchain-groq>=0.2
+langchain-openai>=1.1.9
+langchain-google-genai>=4.2.0
+langchain-ollama>=1.0.1

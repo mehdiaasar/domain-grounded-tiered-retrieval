@@ -29,3 +29,10 @@ old architecture/
 20 que eval/
 eval 20 que v2/
 research papper/
+
+# Local venv
+.venv/
+
+# Test/lint caches
+.pytest_cache/
+.ruff_cache/
